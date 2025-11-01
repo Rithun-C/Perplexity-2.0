@@ -1,7 +1,12 @@
-langgraph 
-langchain_google_genai 
-python_dotenv 
-langchain_community 
-langchain_core 
+langgraph
+langchain_google_genai
+python_dotenv
+langchain_community
+langchain_core
 fastapi
 langchain_groq
+langchain_tavily
+certifi
+urllib3
+requests
+uvicorn
