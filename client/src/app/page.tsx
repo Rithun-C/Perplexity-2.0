@@ -72,7 +72,7 @@ const Home = () => {
         ]);
 
         // Create URL with checkpoint ID if it exists
-        let url = `https://localhost:8000/chat_stream/${encodeURIComponent(userInput)}`;
+        let url = `http://localhost:8000/chat_stream/${encodeURIComponent(userInput)}`;
         if (checkpointId) {
           url += `?checkpoint_id=${encodeURIComponent(checkpointId)}`;
         }

@@ -1,6 +1,6 @@
 from typing import TypedDict, Annotated, Optional
 from langgraph.graph import add_messages, StateGraph, END
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessageChunk, ToolMessage
 from dotenv import load_dotenv
 from langchain_community.tools.tavily_search import TavilySearchResults
@@ -10,21 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 from uuid import uuid4
 from langgraph.checkpoint.memory import MemorySaver
-import ssl
-import certifi
-import os
 
 load_dotenv()
-
-# Configure SSL context to use system certificates
-try:
-    # Set SSL certificate bundle path
-    ssl_context = ssl.create_default_context(cafile=certifi.where())
-    os.environ['SSL_CERT_FILE'] = certifi.where()
-    os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
-except Exception as e:
-    print(f"SSL configuration warning: {e}")
-
 # Initialize memory saver for checkpointing
 memory = MemorySaver()
 
@@ -33,14 +20,12 @@ class State(TypedDict):
 
 search_tool = TavilySearchResults(
     max_results=4,
-    # Disable SSL verification to avoid SSL certificate issues
-    # Note: Only use this in development/testing environments
     include_raw_content=False,
 )
 
 tools = [search_tool]
 
-llm = ChatGroq(model="llama-3.3-70b-versatile")
+llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
 llm_with_tools = llm.bind_tools(tools=tools)
 
@@ -60,24 +45,18 @@ async def tools_router(state: State):
     
 async def tool_node(state):
     """Custom tool node that handles tool calls from the LLM."""
-    # Get the tool calls from the last message
     tool_calls = state["messages"][-1].tool_calls
     
-    # Initialize list to store tool messages
     tool_messages = []
-    
-    # Process each tool call
+
     for tool_call in tool_calls:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
         tool_id = tool_call["id"]
-        
-        # Handle the search tool
+
         if tool_name == "tavily_search_results_json":
-            # Execute the search tool with the provided arguments
             search_results = await search_tool.ainvoke(tool_args)
             
-            # Create a ToolMessage for this result
             tool_message = ToolMessage(
                 content=str(search_results),
                 tool_call_id=tool_id,
@@ -86,7 +65,6 @@ async def tool_node(state):
             
             tool_messages.append(tool_message)
     
-    # Add the tool messages to the state
     return {"messages": tool_messages}
 
 graph_builder = StateGraph(State)
@@ -102,7 +80,6 @@ graph = graph_builder.compile(checkpointer=memory)
 
 app = FastAPI()
 
-# Add CORS middleware with settings that match frontend requirements
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -124,7 +101,6 @@ async def generate_chat_responses(message: str, checkpoint_id: Optional[str] = N
     is_new_conversation = checkpoint_id is None
     
     if is_new_conversation:
-        # Generate new checkpoint ID for first message in conversation
         new_checkpoint_id = str(uuid4())
 
         config = {
@@ -133,14 +109,12 @@ async def generate_chat_responses(message: str, checkpoint_id: Optional[str] = N
             }
         }
         
-        # Initialize with first message
         events = graph.astream_events(
             {"messages": [HumanMessage(content=message)]},
             version="v2",
             config=config
         )
-        
-        # First send the checkpoint ID
+
         yield f"data: {{\"type\": \"checkpoint\", \"checkpoint_id\": \"{new_checkpoint_id}\"}}\n\n"
     else:
         config = {
@@ -148,7 +122,6 @@ async def generate_chat_responses(message: str, checkpoint_id: Optional[str] = N
                 "thread_id": checkpoint_id
             }
         }
-        # Continue existing conversation
         events = graph.astream_events(
             {"messages": [HumanMessage(content=message)]},
             version="v2",
@@ -178,12 +151,9 @@ async def generate_chat_responses(message: str, checkpoint_id: Optional[str] = N
                 yield f"data: {{\"type\": \"search_start\", \"query\": \"{safe_query}\"}}\n\n"
                 
         elif event_type == "on_tool_end" and event["name"] == "tavily_search_results_json":
-            # Search completed - send results or error
             output = event["data"]["output"]
             
-            # Check if output is a list 
             if isinstance(output, list):
-                # Extract URLs from list of search results
                 urls = []
                 for item in output:
                     if isinstance(item, dict) and "url" in item:
@@ -193,7 +163,6 @@ async def generate_chat_responses(message: str, checkpoint_id: Optional[str] = N
                 urls_json = json.dumps(urls)
                 yield f"data: {{\"type\": \"search_results\", \"urls\": {urls_json}}}\n\n"
     
-    # Send an end event
     yield f"data: {{\"type\": \"end\"}}\n\n"
 
 @app.get("/chat_stream/{message}")
@@ -202,5 +171,3 @@ async def chat_stream(message: str, checkpoint_id: Optional[str] = Query(None)):
         generate_chat_responses(message, checkpoint_id), 
         media_type="text/event-stream"
     )
-
-# SSE - server-sent events 

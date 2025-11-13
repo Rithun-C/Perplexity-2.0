@@ -15,11 +15,11 @@ const InputBar: React.FC<InputBarProps> = ({ currentMessage, setCurrentMessage, 
           value={currentMessage}
           onChange={(e) => setCurrentMessage(e.target.value)}
           placeholder="Ask me anything..."
-          className="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5E507F] focus:border-transparent transition-all duration-200"
+          className="flex-1 px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5E507F] focus:border-transparent transition-all duration-200 text-shadow-gray-900 text-gray-900"
         />
         <button
           type="submit"
-          className="px-6 py-3 bg-gradient-to-r from-[#4A3F71] to-[#5E507F] text-white rounded-lg hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-3 bg-linear-to-r from-[#4A3F71] to-[#5E507F] text-white rounded-lg hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!currentMessage.trim()}
         >
           Send
